@@ -41,10 +41,12 @@ protected:
     }
 
 public:
+    /* Constructor */
     Roomba(MPU9250* imu) {
         IMU = imu;
     }
 
+    /* setup() Function */
     void begin() {
         // Initialize the serial port
         Serial.begin(baudRate);
@@ -63,10 +65,7 @@ public:
         IMU->setGyroRange(MPU9250::GYRO_RANGE_250DPS);
     }
 
-    /*
-     * MOTOR CONTROLS
-     * /
-
+    /* Motor Controls */
     void forward() {
         setForward();
         analogWrite(rightChannel, m_speed);
@@ -79,8 +78,14 @@ public:
         analogWrite(leftChannel, m_speed-4);
     }
 
-    // setSpeed sets the target straight-line motor speed.
-    // Use a value between 0-255
+    void stopTurn() {
+        analogWrite(rightChannel, 0);
+        analogWrite(leftChannel, 0);
+        
+        // TODO: implement turning
+    }
+
+    // setSpeed sets the target straight-line motor speed between 0-255.
     void setSpeed(uint8_t speed) {
         if (speed < 35) {
             m_speed = 0;
@@ -89,7 +94,7 @@ public:
         }
     }
 
-    // GetSpeed returns the current straight-line motor speed
+    // getSpeed returns the current straight-line motor speed
     unsigned getSpeed() {
         return (unsigned)m_speed;
     }
