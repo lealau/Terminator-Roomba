@@ -105,26 +105,30 @@ public:
     float readRightIR() {
         int i0 = analogRead(photodiode0);
         int i1 = analogRead(photodiode1);
-        return (i0 + i1) / 2.0F;
+        if (i1 > i0) {
+            return i1 / 2.0F;
+        } else {
+            return i0;
+        }
         
     }
     
     float readLeftIR() {
         int i2 = analogRead(photodiode2);
         int i3 = analogRead(photodiode3);
-        return (i2 + i3) / 2.0F;
+        if (i2 > i3) {
+            return i2 / 2.0F;
+        } else {
+            return i3;
+        }
     }
 
 
     float readIR() {
         float right = readRightIR();
-        float left = readLeftIR();
+        float left = readLeftIR() * -1;
 
-        if (right > left) {
-            return right;
-        } else if (left < right) {
-            return -left;
-        }
+        return right + left;
     }
 
     // setSpeed sets the target straight-line motor speed between 0-255.
@@ -178,7 +182,17 @@ void setup() {
 }
 
 void loop() {
+    Serial.print("L: ");
+    Serial.print(Terminator.readLeftIR() * -1);
+    Serial.print("\t");
+
+    Serial.print("R: ");
+    Serial.print(Terminator.readRightIR());
+    Serial.print("\t");
+
+    Serial.print("C: ");
     Serial.println(Terminator.readIR());
-    delay(50);
+
+    delay(100);
 }
 
