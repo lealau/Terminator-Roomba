@@ -19,30 +19,15 @@ private:
     uint8_t m_speed = 100;
     MPU9250* IMU;
 
+    int beaconAngle = 0;
+
 protected:
-    void updateIMU() {
-        IMU->readSensor();
-    }
+    void updateIMU() { IMU->readSensor(); }
 
-    void forwardRight() {
-        digitalWrite(6, LOW);
-        digitalWrite(7, HIGH);
-    }
-
-    void forwardLeft() {
-        digitalWrite(4, HIGH);
-        digitalWrite(5, LOW);
-    }
-
-    void backwardRight() {
-        digitalWrite(6, HIGH);
-        digitalWrite(7, LOW);
-    }
-
-    void backwardLeft() {
-        digitalWrite(4, LOW);
-        digitalWrite(5, HIGH);
-    }
+    void forwardRight()  { digitalWrite(6, LOW);  digitalWrite(7, HIGH); }
+    void forwardLeft()   { digitalWrite(4, HIGH); digitalWrite(5, LOW); }
+    void backwardRight() { digitalWrite(6, HIGH); digitalWrite(7, LOW); }
+    void backwardLeft()  { digitalWrite(4, LOW);  digitalWrite(5, HIGH); }
 
     void forwardConfig() {
         forwardRight();
@@ -65,28 +50,29 @@ public:
         // Initialize the serial port
         Serial.begin(baudRate);
         
-        // Initialize and configure IMU
-        Serial.println("initializing IMU...");
-        int imu_status = IMU->begin();
-        if (imu_status < 0) {
-            Serial.print("unable to initialize IMU! Status code: ");
-            Serial.println(imu_status);
-            while(1);
-        } else {
-            Serial.print("IMU initialized with status code: ");
-            Serial.println(imu_status);
-        }
-        IMU->setGyroRange(MPU9250::GYRO_RANGE_250DPS);
+        
+        // // Initialize and configure IMU
+        // Serial.println("initializing IMU...");
+        // int imu_status = IMU->begin();
+        // if (imu_status < 0) {
+        //     Serial.print("unable to initialize IMU! Status code: ");
+        //     Serial.println(imu_status);
+        //     while(1);
+        // } else {
+        //     Serial.print("IMU initialized with status code: ");
+        //     Serial.println(imu_status);
+        // }
+        // IMU->setGyroRange(MPU9250::GYRO_RANGE_250DPS);
     }
 
     /* Motor Controls */
-    void forward() {
+    void moveForward() {
         forwardConfig();
         analogWrite(rightChannel, m_speed);
         analogWrite(leftChannel, m_speed+4);
     }
 
-    void backward() {
+    void moveBackward() {
         backwardConfig();
         analogWrite(rightChannel, m_speed);
         analogWrite(leftChannel, m_speed-4);
@@ -101,34 +87,52 @@ public:
         analogWrite(rightChannel, 100);
         analogWrite(leftChannel, 100);
     }
+    
+
+    bool beaconFound() {
+        int threshold = 50;
+        int i0 = analogRead(photodiode0);
+        int i1 = analogRead(photodiode1);
+        int i2 = analogRead(photodiode2);
+        int i3 = analogRead(photodiode3);
+
+        if (i0 > threshold || i1 > threshold || i2 > threshold || i3 > threshold) {
+            return true;
+        }
+        return false;
+    }
+
+
+    float readCenterIR() {
+        int i1 = analogRead(photodiode1);
+        int i2 = analogRead(photodiode2);
+
+        return (i1 + i2) / 2;
+    }
+
+    int calculateBeaconAngle() {
+        int c = readCenterIR();
+        int r = readRightIR();
+
+        return ((r - c) / ((r + c) / 2)) * 1024;
+    }
+
 
     float readRightIR() {
         int i0 = analogRead(photodiode0);
-        int i1 = analogRead(photodiode1);
-        if (i1 > i0) {
-            return i1 / 2.0F;
-        } else {
-            return i0;
-        }
-        
+        return i0;
     }
     
     float readLeftIR() {
         int i2 = analogRead(photodiode2);
         int i3 = analogRead(photodiode3);
-        if (i2 > i3) {
-            return i2 / 2.0F;
-        } else {
-            return i3;
-        }
     }
 
 
     float readIR() {
         float right = readRightIR();
-        float left = readLeftIR() * -1;
-
-        return right + left;
+        float left = readLeftIR();
+        return right - left;
     }
 
     // setSpeed sets the target straight-line motor speed between 0-255.
@@ -140,29 +144,6 @@ public:
         } else {
             m_speed = speed;
         }
-    }
-
-    // getSpeed returns the current straight-line motor speed
-    unsigned getSpeed() {
-        return (unsigned)m_speed;
-    }
-
-    // Print with `Serial.print(Roomba.getAccelX(), 6)`
-    float getAccelX() {
-        updateIMU();
-        return IMU->getAccelX_mss();
-    }
-
-    // Print with `Serial.print(Roomba.getAccelY(), 6)`
-    float getAccelY() {
-        updateIMU();
-        return IMU->getAccelY_mss();
-    }
-
-    // Print with `Serial.print(Roomba.getAccelZ(), 6)`
-    float getAccelZ() {
-        updateIMU();
-        return IMU->getAccelZ_mss();
     }
 };
 
@@ -183,12 +164,12 @@ void setup() {
 
 void loop() {
     Serial.print("L: ");
-    Serial.print(Terminator.readLeftIR() * -1);
-    Serial.print("\t");
+    Serial.print(Terminator.readLeftIR());
+    Serial.print(" \t");
 
     Serial.print("R: ");
     Serial.print(Terminator.readRightIR());
-    Serial.print("\t");
+    Serial.print(" \t");
 
     Serial.print("C: ");
     Serial.println(Terminator.readIR());
