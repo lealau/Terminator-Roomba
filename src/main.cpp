@@ -46,7 +46,7 @@ void stop() {
     analogWrite(rightChannel, 0);
     analogWrite(leftChannel, 0);
 }
-#pragma endregion
+#pragma endregion Movement
 
 #pragma region Calibrated Reading
 int readLeftIR() {
@@ -76,7 +76,7 @@ int rightSideAvg() {
 int deviation() {
     return rightSideAvg() - leftSideAvg();
 }
-#pragma endregion
+#pragma endregion Calibrated Reading
 
 #pragma region Beacon Finding
 bool beaconFound() {
@@ -100,7 +100,7 @@ bool beaconRight() {
 bool beaconLeft() {
     return deviation() < 0;
 }
-#pragma endregion
+#pragma endregion Beacon Finding
 
 void setup() {
     Serial.begin(baudRate);
@@ -155,7 +155,7 @@ void loop() {
     }
 
     delay(100);
-    #pragma endregion
+    #pragma endregion Beacon Testing
     
 }
 
