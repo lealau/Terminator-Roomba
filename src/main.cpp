@@ -1,179 +1,163 @@
 #include <Arduino.h>
-#include <MPU9250.h>
-#include <Wire.h>
+#include <PID_v1.h>
+// #include <MPU9250.h>
 
 #define baudRate 115200
+#define diode0 A0
+#define diode1 A1
+#define diode2 A2
+#define diode3 A3
+#define leftChannel 9
+#define rightChannel 10
 
-class Roomba {
-private:
-    // Pin assignments
-    // Photodiode RIGHT to LEFT 0 to 3
-    const uint8_t photodiode0 = A0;
-    const uint8_t photodiode1 = A1;
-    const uint8_t photodiode2 = A2;
-    const uint8_t photodiode3 = A3;
-    const uint8_t leftChannel = 9;
-    const uint8_t rightChannel = 10;
+int offset0, offset1, offset2, offset3;
+int rightSpeed = 100;
+int leftSpeed = 100;
+double setpoint, input, output;
+double Kp = 1, Ki = 0, Kd = 0;
 
-    // Default bot configurations
-    uint8_t m_speed = 100;
-    MPU9250* IMU;
+// MPU9250 IMU(Wire, 0x68);
+PID pid(&input, &output, &setpoint, Kp, Ki, Kd, REVERSE);
 
-    int beaconAngle = 0;
+#pragma region Movement
+void forwardRight()  { digitalWrite(6, LOW);  digitalWrite(7, HIGH); }
+void forwardLeft()   { digitalWrite(4, HIGH); digitalWrite(5, LOW); }
+void backwardRight() { digitalWrite(6, HIGH); digitalWrite(7, LOW); }
+void backwardLeft()  { digitalWrite(4, LOW);  digitalWrite(5, HIGH); }
 
-protected:
-    void updateIMU() { IMU->readSensor(); }
+void forwardConfig() {
+    forwardRight();
+    forwardLeft();
+}
 
-    void forwardRight()  { digitalWrite(6, LOW);  digitalWrite(7, HIGH); }
-    void forwardLeft()   { digitalWrite(4, HIGH); digitalWrite(5, LOW); }
-    void backwardRight() { digitalWrite(6, HIGH); digitalWrite(7, LOW); }
-    void backwardLeft()  { digitalWrite(4, LOW);  digitalWrite(5, HIGH); }
+void backwardConfig() {
+    backwardRight();
+    backwardLeft();
+}
 
-    void forwardConfig() {
-        forwardRight();
-        forwardLeft();
+void moveForward(int rightSpeed, int leftSpeed) {
+    forwardConfig();
+    analogWrite(rightChannel, rightSpeed);
+    analogWrite(leftChannel, leftSpeed);
+}
+
+void stop() {
+    forwardConfig();
+    analogWrite(rightChannel, 0);
+    analogWrite(leftChannel, 0);
+}
+#pragma endregion
+
+#pragma region Calibrated Reading
+int readLeftIR() {
+    return analogRead(diode3) - offset3;
+}
+
+int readCenterLeftIR() {
+    return analogRead(diode2) - offset2;
+}
+
+int readCenterRightIR() {
+    return analogRead(diode1) - offset1;
+}
+
+int readRightIR() {
+    return analogRead(diode0) - offset0;
+}
+
+int leftSideAvg() {
+    return (readCenterLeftIR() + readLeftIR()) / 2;
+}
+
+int rightSideAvg() {
+    return (readCenterRightIR() + readRightIR()) / 2;
+}
+
+int deviation() {
+    return rightSideAvg() - leftSideAvg();
+}
+#pragma endregion
+
+#pragma region Beacon Finding
+bool beaconFound() {
+    int left        = readLeftIR();
+    int centerLeft  = readCenterLeftIR();
+    int centerRight = readCenterRightIR();
+    int right       = readRightIR();
+
+    int threshold = 20;
+
+    if (abs(left) > threshold || abs(centerLeft) > threshold || abs(centerRight) > threshold || abs(right) > threshold) {
+        return true;
     }
+    return false;
+}
 
-    void backwardConfig() {
-        backwardRight();
-        backwardLeft();
-    }
+bool beaconRight() {
+    return deviation() > 0;
+}
 
-public:
-    /* Constructor */
-    Roomba(MPU9250* imu) {
-        IMU = imu;
-    }
-
-    /* setup() Function */
-    void begin() {
-        // Initialize the serial port
-        Serial.begin(baudRate);
-        
-        
-        // // Initialize and configure IMU
-        // Serial.println("initializing IMU...");
-        // int imu_status = IMU->begin();
-        // if (imu_status < 0) {
-        //     Serial.print("unable to initialize IMU! Status code: ");
-        //     Serial.println(imu_status);
-        //     while(1);
-        // } else {
-        //     Serial.print("IMU initialized with status code: ");
-        //     Serial.println(imu_status);
-        // }
-        // IMU->setGyroRange(MPU9250::GYRO_RANGE_250DPS);
-    }
-
-    /* Motor Controls */
-    void moveForward() {
-        forwardConfig();
-        analogWrite(rightChannel, m_speed);
-        analogWrite(leftChannel, m_speed+4);
-    }
-
-    void moveBackward() {
-        backwardConfig();
-        analogWrite(rightChannel, m_speed);
-        analogWrite(leftChannel, m_speed-4);
-    }
-
-    void stopTurn() {
-        analogWrite(rightChannel, 0);
-        analogWrite(leftChannel, 0);
-        
-        forwardRight();
-        backwardLeft();
-        analogWrite(rightChannel, 100);
-        analogWrite(leftChannel, 100);
-    }
-    
-
-    bool beaconFound() {
-        int threshold = 50;
-        int i0 = analogRead(photodiode0);
-        int i1 = analogRead(photodiode1);
-        int i2 = analogRead(photodiode2);
-        int i3 = analogRead(photodiode3);
-
-        if (i0 > threshold || i1 > threshold || i2 > threshold || i3 > threshold) {
-            return true;
-        }
-        return false;
-    }
-
-
-    float readCenterIR() {
-        int i1 = analogRead(photodiode1);
-        int i2 = analogRead(photodiode2);
-
-        return (i1 + i2) / 2;
-    }
-
-    int calculateBeaconAngle() {
-        int c = readCenterIR();
-        int r = readRightIR();
-
-        return ((r - c) / ((r + c) / 2)) * 1024;
-    }
-
-
-    float readRightIR() {
-        int i0 = analogRead(photodiode0);
-        return i0;
-    }
-    
-    float readLeftIR() {
-        int i2 = analogRead(photodiode2);
-        int i3 = analogRead(photodiode3);
-    }
-
-
-    float readIR() {
-        float right = readRightIR();
-        float left = readLeftIR();
-        return right - left;
-    }
-
-    // setSpeed sets the target straight-line motor speed between 0-255.
-    void setSpeed(uint8_t speed) {
-        if (speed < 80) {
-            m_speed = 0;
-        } else if (speed > 200) {
-            m_speed = 200;
-        } else {
-            m_speed = speed;
-        }
-    }
-};
-
-MPU9250 IMU(Wire, 0x68);
-Roomba Terminator(&IMU);
+bool beaconLeft() {
+    return deviation() < 0;
+}
+#pragma endregion
 
 void setup() {
-    pinMode(4, OUTPUT);
-    pinMode(5, OUTPUT);
-    pinMode(6, OUTPUT);
-    pinMode(7, OUTPUT);
-    pinMode(8, OUTPUT);
-    pinMode(9, OUTPUT);
-    pinMode(10, OUTPUT);
+    delay(2000);
+    Serial.begin(baudRate);
+    
+    // IR Calibration
+    offset0 = analogRead(diode0);
+    offset1 = analogRead(diode1);
+    offset2 = analogRead(diode2);
+    offset3 = analogRead(diode3);
+    Serial.println("IR Photodiodes Calibrated.");
+    
+    // PID setup
+    input = deviation();
+    setpoint = 0;
+    pid.SetOutputLimits(-25, 25);
+    pid.SetMode(AUTOMATIC);
+    Serial.println("PID Controller Initialized.");
 
-    Terminator.begin();
+    // Move to Center
+    moveForward(100, 104);
+    Serial.println("Bot Moving");
+    delay(2000);
+    stop();
+    Serial.println("Bot Stopping");
+    delay(750);
 }
 
 void loop() {
-    Serial.print("L: ");
-    Serial.print(Terminator.readLeftIR());
-    Serial.print(" \t");
+    input = deviation();
+    pid.Compute();
+    moveForward(rightSpeed - output, leftSpeed + output);
 
-    Serial.print("R: ");
-    Serial.print(Terminator.readRightIR());
-    Serial.print(" \t");
+    #pragma region Beacon Testing
+    Serial.print("L:  "); Serial.print(readLeftIR()); Serial.print("\t");
+    Serial.print("CL: "); Serial.print(readCenterLeftIR()); Serial.print("\t");
+    Serial.print("CR: "); Serial.print(readCenterRightIR()); Serial.print("\t");
+    Serial.print("R:  "); Serial.print(readRightIR()); Serial.print("\t");
+    Serial.print("D:  "); Serial.print(deviation()); Serial.print("\t");
+    Serial.print("O:  "); Serial.print(output); Serial.print("\t");
 
-    Serial.print("C: ");
-    Serial.println(Terminator.readIR());
+    if (beaconFound()) {
+        Serial.print("BEACON");
+        if (beaconRight()) {
+            Serial.println(" RIGHT --> ");
+        } else if (beaconLeft()) {
+            Serial.println(" <-- LEFT ");
+        } else {
+            Serial.println(" -- CENTER -- ");
+        }
+    } else {  
+        Serial.println();
+    }
 
     delay(100);
+    #pragma endregion
+    
 }
+
 
