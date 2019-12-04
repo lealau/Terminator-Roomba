@@ -11,8 +11,8 @@
 #define rightChannel 10
 
 int offset0, offset1, offset2, offset3;
-int rightSpeed = 100;
-int leftSpeed = 100;
+int rightSpeed = 150;
+int leftSpeed = 150;
 double setpoint, input, output;
 double Kp = 1, Ki = 0, Kd = 0;
 
@@ -103,7 +103,14 @@ bool beaconLeft() {
 #pragma endregion
 
 void setup() {
-    delay(2000);
+    pinMode(4, OUTPUT);
+    pinMode(5, OUTPUT);
+    pinMode(6, OUTPUT);
+    pinMode(7, OUTPUT);
+    pinMode(8, OUTPUT);
+    pinMode(9, OUTPUT);
+    pinMode(10, OUTPUT);
+
     Serial.begin(baudRate);
     
     // IR Calibration
@@ -116,17 +123,17 @@ void setup() {
     // PID setup
     input = deviation();
     setpoint = 0;
-    pid.SetOutputLimits(-25, 25);
+    pid.SetOutputLimits(-40, 40);
     pid.SetMode(AUTOMATIC);
     Serial.println("PID Controller Initialized.");
 
     // Move to Center
-    moveForward(100, 104);
     Serial.println("Bot Moving");
-    delay(2000);
+    moveForward(rightSpeed, leftSpeed);
+    delay(3000);
     stop();
     Serial.println("Bot Stopping");
-    delay(750);
+    delay(2000);
 }
 
 void loop() {
